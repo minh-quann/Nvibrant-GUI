@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=NVibrant
+Comment=NVIDIA Digital Vibrance Controller for Wayland
+Exec=nvibrant-gui
+Icon=applications-graphics
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;
+Keywords=nvidia;vibrance;display;color;saturation;
+StartupNotify=true
