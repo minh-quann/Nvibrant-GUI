@@ -18,6 +18,8 @@ from nvibrant_gui.core.constants import (
     NVIBRANT_REPO,
     CONFIG_DIR,
     CONFIG_FILE,
+    SYSTEMD_DIR,
+    SYSTEMD_SERVICE,
 )
 
 
@@ -79,12 +81,15 @@ def parse_nvibrant_output(output: str) -> list[DisplayPort]:
 
 # ─── NVibrant Commands ────────────────────────────────────────────────────────
 
-def get_current_ports() -> list[DisplayPort]:
-    """Query nvibrant for current display port states"""
+def get_current_ports(saved_values: list[int] | None = None) -> list[DisplayPort]:
+    """Query nvibrant for current display port states.
+    If saved_values provided, pass them to avoid resetting vibrance to 0."""
     try:
+        cmd = ["uvx", "nvibrant"]
+        if saved_values:
+            cmd += [str(v) for v in saved_values]
         result = subprocess.run(
-            ["uvx", "nvibrant"],
-            capture_output=True, text=True, timeout=15
+            cmd, capture_output=True, text=True, timeout=15
         )
         return parse_nvibrant_output(result.stdout)
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -156,4 +161,38 @@ def load_config() -> list[int] | None:
         return None
 
 
+# ─── Systemd Service ─────────────────────────────────────────────────────────
+
+_SERVICE_TEMPLATE = """[Unit]
+Description=Apply nvibrant {raw_val}
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/uvx nvibrant {args}
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def update_systemd_service(raw_val: int, port_count: int) -> None:
+    """Update and enable systemd user service for autostart on login"""
+    args = " ".join([str(raw_val)] * port_count)
+    service_content = _SERVICE_TEMPLATE.format(raw_val=raw_val, args=args)
+
+    os.makedirs(SYSTEMD_DIR, exist_ok=True)
+    with open(SYSTEMD_SERVICE, "w") as f:
+        f.write(service_content)
+
+    # Reload and enable
+    subprocess.run(
+        ["systemctl", "--user", "daemon-reload"],
+        capture_output=True, timeout=5
+    )
+    subprocess.run(
+        ["systemctl", "--user", "enable", "nvibrant.service"],
+        capture_output=True, timeout=5
+    )
 

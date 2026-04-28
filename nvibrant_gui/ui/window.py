@@ -1,5 +1,6 @@
 """
 Main application window for NVibrant GUI.
+Simplified single-slider design that applies to all ports.
 """
 
 import gi
@@ -21,21 +22,21 @@ from nvibrant_gui.core.backend import (
     percent_to_vibrance,
     save_config,
     load_config,
+    update_systemd_service,
 )
-from nvibrant_gui.ui.port_row import PortRow
 
 
 class NVibrantWindow(Adw.ApplicationWindow):
-    """Main application window"""
+    """Main application window — single slider for all ports"""
 
     def __init__(self, app: Adw.Application):
         super().__init__(
             application=app,
             title="NVibrant",
-            default_width=600,
-            default_height=500
+            default_width=420,
+            default_height=300
         )
-        self.port_rows: list[PortRow] = []
+        self.ports: list[DisplayPort] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -50,7 +51,7 @@ class NVibrantWindow(Adw.ApplicationWindow):
         ))
 
         refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
-        refresh_btn.set_tooltip_text("Refresh displays")
+        refresh_btn.set_tooltip_text("Refresh")
         refresh_btn.connect("clicked", self._on_refresh)
         header.pack_start(refresh_btn)
 
@@ -101,36 +102,95 @@ class NVibrantWindow(Adw.ApplicationWindow):
         return status_page
 
     def _build_main_page(self) -> Gtk.Widget:
-        """Build the main vibrance control page"""
+        """Build the simplified single-slider main page"""
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_vexpand(True)
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Content area
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        content.set_margin_start(24)
+        content.set_margin_end(24)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_vexpand(True)
 
-        self.ports_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.ports_box.set_margin_top(8)
-        self.ports_box.set_margin_bottom(8)
+        # Driver info banner
+        self.info_banner = Adw.Banner()
+        self.info_banner.set_revealed(False)
+        main_box.append(self.info_banner)
 
-        self.main_spinner = Gtk.Spinner()
-        self.main_spinner.set_spinning(True)
-        self.main_spinner.set_margin_top(48)
-        self.ports_box.append(self.main_spinner)
+        # Vibrance card
+        frame = Gtk.Frame()
+        frame.add_css_class("card")
+        card_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        card_inner.set_margin_start(20)
+        card_inner.set_margin_end(20)
+        card_inner.set_margin_top(20)
+        card_inner.set_margin_bottom(20)
 
-        scrolled.set_child(self.ports_box)
-        main_box.append(scrolled)
+        # Title row
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        icon = Gtk.Image.new_from_icon_name("video-display-symbolic")
+        icon.set_pixel_size(24)
+        title_row.append(icon)
+        title_label = Gtk.Label(label="Digital Vibrance")
+        title_label.add_css_class("heading")
+        title_label.set_hexpand(True)
+        title_label.set_xalign(0)
+        title_row.append(title_label)
+        card_inner.append(title_row)
+
+        # Slider + percentage label
+        slider_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+
+        self.scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.scale.set_hexpand(True)
+        self.scale.set_draw_value(False)
+        self.scale.add_mark(0, Gtk.PositionType.BOTTOM, "0%")
+        self.scale.add_mark(50, Gtk.PositionType.BOTTOM, "50%")
+        self.scale.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
+        self.scale.connect("value-changed", self._on_scale_changed)
+
+        self.percent_label = Gtk.Label()
+        self.percent_label.set_width_chars(5)
+        self.percent_label.add_css_class("title-1")
+
+        slider_box.append(self.scale)
+        slider_box.append(self.percent_label)
+        card_inner.append(slider_box)
+
+        # Preset buttons
+        presets_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        presets_box.set_halign(Gtk.Align.CENTER)
+        for pct_val, pct_text in [(0, "0%"), (50, "50%"), (60, "60%"), (80, "80%"), (100, "100%")]:
+            btn = Gtk.Button(label=pct_text)
+            btn.add_css_class("pill")
+            if pct_val == 80:
+                btn.add_css_class("suggested-action")
+            btn.connect("clicked", self._on_preset, pct_val)
+            presets_box.append(btn)
+        card_inner.append(presets_box)
+
+        frame.set_child(card_inner)
+        content.append(frame)
+
+        # Info: applies to all displays
+        info_label = Gtk.Label(label="Applies to all connected displays")
+        info_label.add_css_class("dim-label")
+        info_label.add_css_class("caption")
+        content.append(info_label)
+
+        main_box.append(content)
 
         # Bottom action bar
         action_bar = Gtk.ActionBar()
 
-        # Status label
         self.status_label = Gtk.Label(label="Ready")
         self.status_label.set_xalign(0)
         self.status_label.add_css_class("dim-label")
         self.status_label.set_hexpand(True)
         action_bar.pack_start(self.status_label)
 
-        reset_btn = Gtk.Button(label="Reset All")
+        reset_btn = Gtk.Button(label="Reset")
         reset_btn.add_css_class("destructive-action")
         reset_btn.add_css_class("pill")
         reset_btn.connect("clicked", self._on_reset)
@@ -144,100 +204,102 @@ class NVibrantWindow(Adw.ApplicationWindow):
 
         main_box.append(action_bar)
 
-        self._load_ports_async()
+        # Load saved value and port info
+        self._load_async()
         return main_box
 
-    def _load_ports_async(self) -> None:
-        """Load display ports in background thread"""
+    def _load_async(self) -> None:
+        """Load ports and config in background"""
         def worker():
-            ports = get_current_ports()
+            # Load config FIRST so we can pass values to nvibrant
+            # This prevents nvibrant from resetting vibrance to 0
             saved = load_config()
-            GLib.idle_add(self._populate_ports, ports, saved)
+            ports = get_current_ports(saved_values=saved)
+            GLib.idle_add(self._on_loaded, ports, saved)
         threading.Thread(target=worker, daemon=True).start()
 
-    def _populate_ports(self, ports: list[DisplayPort], saved: list[int] | None) -> None:
-        """Populate port rows in UI (main thread)"""
-        child = self.ports_box.get_first_child()
-        while child:
-            next_child = child.get_next_sibling()
-            self.ports_box.remove(child)
-            child = next_child
+    def _on_loaded(self, ports: list[DisplayPort], saved: list[int] | None) -> None:
+        """Handle loaded data on main thread"""
+        self.ports = ports
 
-        self.port_rows.clear()
-
-        if not ports:
-            empty = Adw.StatusPage()
-            empty.set_icon_name("dialog-warning-symbolic")
-            empty.set_title("No Display Ports Found")
-            empty.set_description("Could not detect any GPU display outputs.")
-            self.ports_box.append(empty)
-            return
-
-        # Driver info banner
+        # Show driver info
         driver_ver = get_driver_version()
         active_count = len([p for p in ports if p.status == PortStatus.CONNECTED])
-        info = Adw.Banner()
-        info.set_title(f"NVIDIA Driver v{driver_ver} — {active_count} active display(s)")
-        info.set_revealed(True)
-        self.ports_box.append(info)
+        self.info_banner.set_title(
+            f"NVIDIA Driver v{driver_ver} — {active_count} active display(s)"
+        )
+        self.info_banner.set_revealed(True)
 
-        # If saved config exists, restore slider values
-        for port in ports:
-            row = PortRow(port)
-            # Restore saved value for this port if available
-            if saved and port.index < len(saved):
-                saved_pct = vibrance_to_percent(saved[port.index])
-                if row.scale:
-                    row.scale.set_value(saved_pct)
-            self.port_rows.append(row)
-            self.ports_box.append(row)
-
+        # Restore saved value (use first non-zero value from config)
         if saved:
-            self.status_label.set_label("Config loaded — click Apply to re-apply")
+            # Find the highest saved value (they should all be the same)
+            max_val = max(saved)
+            pct = vibrance_to_percent(max_val)
+            self.scale.set_value(pct)
+            self.status_label.set_label(f"Config loaded — {pct}%")
         else:
-            self.status_label.set_label("Ready — Adjust sliders and click Apply")
+            # Read current value from connected port
+            for port in ports:
+                if port.status == PortStatus.CONNECTED and port.current_vibrance > 0:
+                    pct = vibrance_to_percent(port.current_vibrance)
+                    self.scale.set_value(pct)
+                    break
+            else:
+                self.scale.set_value(0)
+            self.status_label.set_label("Ready")
+
+        self._update_label(self.scale.get_value())
         return False
 
     # ─── Event Handlers ──────────────────────────────────────────────────
+
+    def _on_scale_changed(self, scale: Gtk.Scale) -> None:
+        self._update_label(scale.get_value())
+
+    def _update_label(self, pct: float) -> None:
+        """Update the percentage display"""
+        self.percent_label.set_label(f"{int(pct)}%")
+        if pct > 0:
+            self.percent_label.remove_css_class("dim-label")
+            self.percent_label.add_css_class("success")
+        else:
+            self.percent_label.remove_css_class("success")
+            self.percent_label.add_css_class("dim-label")
+
+    def _on_preset(self, _btn: Gtk.Button, pct: int) -> None:
+        self.scale.set_value(pct)
 
     def _on_refresh(self, _btn: Gtk.Button) -> None:
         self._build_ui()
 
     def _on_apply(self, _btn: Gtk.Button) -> None:
-        if not self.port_rows:
-            return
-        values = [row.get_vibrance() for row in self.port_rows]
+        pct = int(self.scale.get_value())
+        raw = percent_to_vibrance(pct)
+
+        # Build values for all ports (same value)
+        port_count = len(self.ports) if self.ports else 5
+        values = [raw] * port_count
+
         self.status_label.set_label("Applying...")
 
         def worker():
             success, output = apply_vibrance(values)
             if success:
-                # Save config for persistence
                 save_config(values)
-            pcts = [vibrance_to_percent(v) for v in values]
-            GLib.idle_add(self._on_apply_done, success, output, pcts)
+                update_systemd_service(raw, port_count)
+            GLib.idle_add(self._on_apply_done, success, pct)
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_apply_done(self, success: bool, output: str, pcts: list[int]) -> None:
+    def _on_apply_done(self, success: bool, pct: int) -> None:
         if success:
-            connected = [
-                (i, p) for i, p in enumerate(pcts)
-                if self.port_rows[i].port.status == PortStatus.CONNECTED
-            ]
-            summary = ", ".join(
-                f"Port {self.port_rows[i].port.index}: {p}%"
-                for i, p in connected
-            )
-            self.status_label.set_label(f"✓ Applied & Saved — {summary}")
+            self.status_label.set_label(f"✓ Applied {pct}% to all displays")
         else:
             self.status_label.set_label("✗ Failed — check terminal for details")
         return False
 
     def _on_reset(self, _btn: Gtk.Button) -> None:
-        for row in self.port_rows:
-            if row.scale:
-                row.scale.set_value(0)
-        self.status_label.set_label("Sliders reset to 0% (default) — click Apply to confirm")
+        self.scale.set_value(0)
+        self.status_label.set_label("Reset to 0% — click Apply to confirm")
 
     def _on_install_pip(self, btn: Gtk.Button) -> None:
         btn.set_sensitive(False)
