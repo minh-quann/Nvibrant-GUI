@@ -11,6 +11,10 @@ from enum import Enum
 NVIBRANT_REPO = "https://github.com/Tremeschin/nvibrant.git"
 CLONE_DIR = os.path.join(os.path.expanduser("~"), ".local", "share", "nvibrant-gui", "nvibrant")
 APP_ID = "com.github.nvibrant.gui"
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "nvibrant-gui")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+SYSTEMD_DIR = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user")
+SYSTEMD_SERVICE = os.path.join(SYSTEMD_DIR, "nvibrant.service")
 
 # Vibrance range: -1024 (grayscale/0%) to 1023 (max/200%), 0 = 100% (default)
 VIBRANCE_MIN = -1024

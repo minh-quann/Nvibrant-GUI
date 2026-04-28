@@ -18,6 +18,9 @@ from nvibrant_gui.core.backend import (
     install_via_pip,
     clone_repo,
     vibrance_to_percent,
+    percent_to_vibrance,
+    save_config,
+    load_config,
 )
 from nvibrant_gui.ui.port_row import PortRow
 
@@ -120,9 +123,11 @@ class NVibrantWindow(Adw.ApplicationWindow):
         # Bottom action bar
         action_bar = Gtk.ActionBar()
 
+        # Status label
         self.status_label = Gtk.Label(label="Ready")
         self.status_label.set_xalign(0)
         self.status_label.add_css_class("dim-label")
+        self.status_label.set_hexpand(True)
         action_bar.pack_start(self.status_label)
 
         reset_btn = Gtk.Button(label="Reset All")
@@ -146,10 +151,11 @@ class NVibrantWindow(Adw.ApplicationWindow):
         """Load display ports in background thread"""
         def worker():
             ports = get_current_ports()
-            GLib.idle_add(self._populate_ports, ports)
+            saved = load_config()
+            GLib.idle_add(self._populate_ports, ports, saved)
         threading.Thread(target=worker, daemon=True).start()
 
-    def _populate_ports(self, ports: list[DisplayPort]) -> None:
+    def _populate_ports(self, ports: list[DisplayPort], saved: list[int] | None) -> None:
         """Populate port rows in UI (main thread)"""
         child = self.ports_box.get_first_child()
         while child:
@@ -175,12 +181,21 @@ class NVibrantWindow(Adw.ApplicationWindow):
         info.set_revealed(True)
         self.ports_box.append(info)
 
+        # If saved config exists, restore slider values
         for port in ports:
             row = PortRow(port)
+            # Restore saved value for this port if available
+            if saved and port.index < len(saved):
+                saved_pct = vibrance_to_percent(saved[port.index])
+                if row.scale:
+                    row.scale.set_value(saved_pct)
             self.port_rows.append(row)
             self.ports_box.append(row)
 
-        self.status_label.set_label("Ready — Adjust sliders and click Apply")
+        if saved:
+            self.status_label.set_label("Config loaded — click Apply to re-apply")
+        else:
+            self.status_label.set_label("Ready — Adjust sliders and click Apply")
         return False
 
     # ─── Event Handlers ──────────────────────────────────────────────────
@@ -196,6 +211,9 @@ class NVibrantWindow(Adw.ApplicationWindow):
 
         def worker():
             success, output = apply_vibrance(values)
+            if success:
+                # Save config for persistence
+                save_config(values)
             pcts = [vibrance_to_percent(v) for v in values]
             GLib.idle_add(self._on_apply_done, success, output, pcts)
         threading.Thread(target=worker, daemon=True).start()
@@ -210,7 +228,7 @@ class NVibrantWindow(Adw.ApplicationWindow):
                 f"Port {self.port_rows[i].port.index}: {p}%"
                 for i, p in connected
             )
-            self.status_label.set_label(f"✓ Applied — {summary}")
+            self.status_label.set_label(f"✓ Applied & Saved — {summary}")
         else:
             self.status_label.set_label("✗ Failed — check terminal for details")
         return False
@@ -218,8 +236,8 @@ class NVibrantWindow(Adw.ApplicationWindow):
     def _on_reset(self, _btn: Gtk.Button) -> None:
         for row in self.port_rows:
             if row.scale:
-                row.scale.set_value(100)
-        self.status_label.set_label("Sliders reset to 100% — click Apply to confirm")
+                row.scale.set_value(0)
+        self.status_label.set_label("Sliders reset to 0% (default) — click Apply to confirm")
 
     def _on_install_pip(self, btn: Gtk.Button) -> None:
         btn.set_sensitive(False)

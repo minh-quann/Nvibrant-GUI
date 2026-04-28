@@ -3,6 +3,7 @@ Backend logic for interacting with nvibrant CLI.
 Handles detection, parsing output, and applying vibrance values.
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -15,19 +16,24 @@ from nvibrant_gui.core.constants import (
     VIBRANCE_DEFAULT,
     CLONE_DIR,
     NVIBRANT_REPO,
+    CONFIG_DIR,
+    CONFIG_FILE,
 )
 
 
 # ─── Conversion Helpers ──────────────────────────────────────────────────────
 
 def vibrance_to_percent(value: int) -> int:
-    """Convert raw vibrance (-1024..1023) to percentage (0..200)"""
-    return round((value - VIBRANCE_MIN) / (VIBRANCE_MAX - VIBRANCE_MIN) * 200)
+    """Convert raw vibrance (0..1023) to percentage (0..100)
+    0% = 0 (default, no effect), 100% = 1023 (max saturation)"""
+    clamped = max(0, min(VIBRANCE_MAX, value))
+    return round(clamped / VIBRANCE_MAX * 100)
 
 
 def percent_to_vibrance(percent: int) -> int:
-    """Convert percentage (0..200) to raw vibrance (-1024..1023)"""
-    return round(VIBRANCE_MIN + (percent / 200) * (VIBRANCE_MAX - VIBRANCE_MIN))
+    """Convert percentage (0..100) to raw vibrance (0..1023)
+    0% = 0 (default, no effect), 100% = 1023 (max saturation)"""
+    return round(percent / 100 * VIBRANCE_MAX)
 
 
 # ─── NVibrant Detection ──────────────────────────────────────────────────────
@@ -124,3 +130,30 @@ def clone_repo() -> tuple[bool, str]:
         return success, msg
     except Exception as e:
         return False, str(e)
+
+
+# ─── Config Persistence ──────────────────────────────────────────────────────
+
+def save_config(values: list[int]) -> None:
+    """Save vibrance values to config file"""
+    import json
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    config = {"vibrance_values": values}
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def load_config() -> list[int] | None:
+    """Load saved vibrance values from config file"""
+    import json
+    if not os.path.isfile(CONFIG_FILE):
+        return None
+    try:
+        with open(CONFIG_FILE) as f:
+            config = json.load(f)
+        return config.get("vibrance_values")
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+

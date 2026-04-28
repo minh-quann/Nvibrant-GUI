@@ -64,12 +64,12 @@ class PortRow(Gtk.Box):
             self.percent_label.set_width_chars(5)
             self.percent_label.add_css_class("title-2")
 
-            self.scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 200, 1)
+            self.scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
             self.scale.set_hexpand(True)
             self.scale.set_draw_value(False)
             self.scale.add_mark(0, Gtk.PositionType.BOTTOM, "0%")
+            self.scale.add_mark(50, Gtk.PositionType.BOTTOM, "50%")
             self.scale.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
-            self.scale.add_mark(200, Gtk.PositionType.BOTTOM, "200%")
 
             initial_pct = vibrance_to_percent(port.current_vibrance)
             self.scale.set_value(initial_pct)
@@ -83,10 +83,10 @@ class PortRow(Gtk.Box):
             # Preset buttons
             presets_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             presets_box.set_halign(Gtk.Align.CENTER)
-            for pct_val, pct_text in [(50, "50%"), (100, "100%"), (125, "125%"), (150, "150%"), (200, "200%")]:
+            for pct_val, pct_text in [(0, "0%"), (50, "50%"), (60, "60%"), (80, "80%"), (100, "100%")]:
                 btn = Gtk.Button(label=pct_text)
                 btn.add_css_class("pill")
-                if pct_val == 100:
+                if pct_val == 80:
                     btn.add_css_class("suggested-action")
                 btn.connect("clicked", self._on_preset, pct_val)
                 presets_box.append(btn)
@@ -106,12 +106,9 @@ class PortRow(Gtk.Box):
     def _update_label(self, pct: float) -> None:
         """Update the percentage display label"""
         self.percent_label.set_label(f"{int(pct)}%")
-        if pct > 100:
+        if pct > 0:
             self.percent_label.remove_css_class("warning")
             self.percent_label.add_css_class("success")
-        elif pct < 100:
-            self.percent_label.remove_css_class("success")
-            self.percent_label.add_css_class("warning")
         else:
             self.percent_label.remove_css_class("success")
             self.percent_label.remove_css_class("warning")

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <!-- Vibrance rainbow gradient -->
+    <linearGradient id="vibrance" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff3860"/>
+      <stop offset="25%" stop-color="#ff9f1a"/>
+      <stop offset="50%" stop-color="#23d160"/>
+      <stop offset="75%" stop-color="#209cee"/>
+      <stop offset="100%" stop-color="#b86bff"/>
+    </linearGradient>
+    <!-- NVIDIA green glow -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#76b900" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#76b900" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Slider track gradient -->
+    <linearGradient id="track" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#555"/>
+      <stop offset="50%" stop-color="#76b900"/>
+      <stop offset="100%" stop-color="#76b900"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#bg)" stroke="#2a2a4a" stroke-width="1.5"/>
+
+  <!-- Subtle glow center -->
+  <circle cx="64" cy="52" r="40" fill="url(#glow)"/>
+
+  <!-- Monitor frame -->
+  <rect x="24" y="22" width="80" height="56" rx="6" ry="6" fill="none" stroke="#e0e0e0" stroke-width="3"/>
+
+  <!-- Screen area -->
+  <rect x="28" y="26" width="72" height="48" rx="3" ry="3" fill="#0a0a1a"/>
+
+  <!-- Vibrance color bars inside screen -->
+  <rect x="32" y="30" width="9" height="40" rx="2" fill="#ff3860" opacity="0.9"/>
+  <rect x="43" y="34" width="9" height="36" rx="2" fill="#ff9f1a" opacity="0.9"/>
+  <rect x="54" y="30" width="9" height="40" rx="2" fill="#23d160" opacity="0.9"/>
+  <rect x="65" y="36" width="9" height="34" rx="2" fill="#209cee" opacity="0.9"/>
+  <rect x="76" y="32" width="9" height="38" rx="2" fill="#b86bff" opacity="0.9"/>
+  <rect x="87" y="30" width="9" height="40" rx="2" fill="#76b900" opacity="0.9"/>
+
+  <!-- Monitor stand -->
+  <line x1="64" y1="78" x2="64" y2="86" stroke="#e0e0e0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="50" y1="86" x2="78" y2="86" stroke="#e0e0e0" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Slider track -->
+  <rect x="26" y="96" width="76" height="6" rx="3" fill="#333"/>
+  <rect x="26" y="96" width="50" height="6" rx="3" fill="url(#track)"/>
+
+  <!-- Slider thumb -->
+  <circle cx="76" cy="99" r="8" fill="#76b900" stroke="#fff" stroke-width="2"/>
+
+  <!-- Small "V" letter on thumb -->
+  <text x="76" y="103" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="10" fill="#fff">V</text>
+</svg>

@@ -4,9 +4,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_SRC="$SCRIPT_DIR/nvibrant_gui/data/nvibrant-gui.desktop"
 DESKTOP_DST="$HOME/.local/share/applications/nvibrant-gui.desktop"
+ICON_SRC="$SCRIPT_DIR/nvibrant_gui/data/nvibrant-gui.svg"
+ICON_DST="$HOME/.local/share/icons/hicolor/scalable/apps/nvibrant-gui.svg"
 
 echo "╔══════════════════════════════════════════════╗"
 echo "║       NVibrant GUI — Installer               ║"
@@ -23,6 +25,12 @@ echo "→ Installing .desktop launcher..."
 mkdir -p "$(dirname "$DESKTOP_DST")"
 cp "$DESKTOP_SRC" "$DESKTOP_DST"
 echo "  ✓ Desktop entry installed at $DESKTOP_DST"
+
+# Step 3: Install icon
+echo "→ Installing app icon..."
+mkdir -p "$(dirname "$ICON_DST")"
+cp "$ICON_SRC" "$ICON_DST"
+echo "  ✓ Icon installed at $ICON_DST"
 
 # Step 3: Update desktop database
 if command -v update-desktop-database &>/dev/null; then
