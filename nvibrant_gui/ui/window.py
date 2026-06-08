@@ -37,6 +37,7 @@ class NVibrantWindow(Adw.ApplicationWindow):
             default_height=300
         )
         self.ports: list[DisplayPort] = []
+        self._updating_scales = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -47,7 +48,7 @@ class NVibrantWindow(Adw.ApplicationWindow):
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(
             title="NVibrant",
-            subtitle="Digital Vibrance Controller"
+            subtitle="Digital Vibrance Controller — Ver 1.0"
         ))
 
         refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
@@ -158,6 +159,25 @@ class NVibrantWindow(Adw.ApplicationWindow):
         slider_box.append(self.percent_label)
         card_inner.append(slider_box)
 
+        # Raw slider + label
+        raw_slider_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        
+        self.raw_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1023, 1)
+        self.raw_scale.set_hexpand(True)
+        self.raw_scale.set_draw_value(False)
+        self.raw_scale.add_mark(0, Gtk.PositionType.BOTTOM, "0")
+        self.raw_scale.add_mark(500, Gtk.PositionType.BOTTOM, "500")
+        self.raw_scale.add_mark(1023, Gtk.PositionType.BOTTOM, "1023")
+        self.raw_scale.connect("value-changed", self._on_raw_scale_changed)
+
+        self.raw_label = Gtk.Label()
+        self.raw_label.set_width_chars(5)
+        self.raw_label.add_css_class("title-1")
+
+        raw_slider_box.append(self.raw_scale)
+        raw_slider_box.append(self.raw_label)
+        card_inner.append(raw_slider_box)
+
         # Preset buttons
         presets_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         presets_box.set_halign(Gtk.Align.CENTER)
@@ -231,11 +251,13 @@ class NVibrantWindow(Adw.ApplicationWindow):
         self.info_banner.set_revealed(True)
 
         # Restore saved value (use first non-zero value from config)
+        self._updating_scales = True
         if saved:
             # Find the highest saved value (they should all be the same)
             max_val = max(saved)
             pct = vibrance_to_percent(max_val)
             self.scale.set_value(pct)
+            self.raw_scale.set_value(max_val)
             self.status_label.set_label(f"Config loaded — {pct}%")
         else:
             # Read current value from connected port
@@ -243,18 +265,39 @@ class NVibrantWindow(Adw.ApplicationWindow):
                 if port.status == PortStatus.CONNECTED and port.current_vibrance > 0:
                     pct = vibrance_to_percent(port.current_vibrance)
                     self.scale.set_value(pct)
+                    self.raw_scale.set_value(port.current_vibrance)
                     break
             else:
                 self.scale.set_value(0)
+                self.raw_scale.set_value(0)
             self.status_label.set_label("Ready")
+        self._updating_scales = False
 
         self._update_label(self.scale.get_value())
+        self._update_raw_label(self.raw_scale.get_value())
         return False
 
     # ─── Event Handlers ──────────────────────────────────────────────────
 
     def _on_scale_changed(self, scale: Gtk.Scale) -> None:
-        self._update_label(scale.get_value())
+        pct = scale.get_value()
+        self._update_label(pct)
+        if not self._updating_scales:
+            self._updating_scales = True
+            raw = percent_to_vibrance(int(pct))
+            self.raw_scale.set_value(raw)
+            self._update_raw_label(raw)
+            self._updating_scales = False
+
+    def _on_raw_scale_changed(self, scale: Gtk.Scale) -> None:
+        raw = scale.get_value()
+        self._update_raw_label(raw)
+        if not self._updating_scales:
+            self._updating_scales = True
+            pct = vibrance_to_percent(int(raw))
+            self.scale.set_value(pct)
+            self._update_label(pct)
+            self._updating_scales = False
 
     def _update_label(self, pct: float) -> None:
         """Update the percentage display"""
@@ -266,6 +309,16 @@ class NVibrantWindow(Adw.ApplicationWindow):
             self.percent_label.remove_css_class("success")
             self.percent_label.add_css_class("dim-label")
 
+    def _update_raw_label(self, raw: float) -> None:
+        """Update the raw value display"""
+        self.raw_label.set_label(f"{int(raw)}")
+        if raw > 0:
+            self.raw_label.remove_css_class("dim-label")
+            self.raw_label.add_css_class("success")
+        else:
+            self.raw_label.remove_css_class("success")
+            self.raw_label.add_css_class("dim-label")
+
     def _on_preset(self, _btn: Gtk.Button, pct: int) -> None:
         self.scale.set_value(pct)
 
@@ -274,13 +327,13 @@ class NVibrantWindow(Adw.ApplicationWindow):
 
     def _on_apply(self, _btn: Gtk.Button) -> None:
         pct = int(self.scale.get_value())
-        raw = percent_to_vibrance(pct)
+        raw = int(self.raw_scale.get_value())
 
         # Build values for all ports (same value)
         port_count = len(self.ports) if self.ports else 5
         values = [raw] * port_count
 
-        self.status_label.set_label("Applying...")
+        self.status_label.set_label("Applying & Saving config...")
 
         def worker():
             success, output = apply_vibrance(values)
@@ -292,13 +345,14 @@ class NVibrantWindow(Adw.ApplicationWindow):
 
     def _on_apply_done(self, success: bool, pct: int) -> None:
         if success:
-            self.status_label.set_label(f"✓ Applied {pct}% to all displays")
+            self.status_label.set_label(f"✓ Applied {pct}%")
         else:
             self.status_label.set_label("✗ Failed — check terminal for details")
         return False
 
     def _on_reset(self, _btn: Gtk.Button) -> None:
         self.scale.set_value(0)
+        self.raw_scale.set_value(0)
         self.status_label.set_label("Reset to 0% — click Apply to confirm")
 
     def _on_install_pip(self, btn: Gtk.Button) -> None:

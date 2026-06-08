@@ -25,17 +25,46 @@ from nvibrant_gui.core.constants import (
 
 # ─── Conversion Helpers ──────────────────────────────────────────────────────
 
-def vibrance_to_percent(value: int) -> int:
-    """Convert raw vibrance (0..1023) to percentage (0..100)
-    0% = 0 (default, no effect), 100% = 1023 (max saturation)"""
-    clamped = max(0, min(VIBRANCE_MAX, value))
-    return round(clamped / VIBRANCE_MAX * 100)
-
+# Mapping Windows Percentage -> Raw nvibrant value to simulate non-linear curve
+LUT_MAPPING = [
+    (0, 0),
+    (10, 80),
+    (20, 170),
+    (30, 270),
+    (40, 380),
+    (50, 500),
+    (60, 630),
+    (70, 750),
+    (80, 850),
+    (90, 950),
+    (100, 1023)
+]
 
 def percent_to_vibrance(percent: int) -> int:
-    """Convert percentage (0..100) to raw vibrance (0..1023)
-    0% = 0 (default, no effect), 100% = 1023 (max saturation)"""
-    return round(percent / 100 * VIBRANCE_MAX)
+    """Convert percentage (0..100) to raw vibrance (0..1023) using a LUT"""
+    if percent < 0: return round(percent / 100 * 1024)
+    percent = max(0, min(100, percent))
+    for i in range(len(LUT_MAPPING) - 1):
+        p1, r1 = LUT_MAPPING[i]
+        p2, r2 = LUT_MAPPING[i+1]
+        if p1 <= percent <= p2:
+            if p2 == p1: return r1
+            ratio = (percent - p1) / (p2 - p1)
+            return round(r1 + ratio * (r2 - r1))
+    return 1023
+
+def vibrance_to_percent(value: int) -> int:
+    """Convert raw vibrance (0..1023) to percentage (0..100) using a LUT"""
+    if value < 0: return round(value / 1024 * 100)
+    value = max(0, min(1023, value))
+    for i in range(len(LUT_MAPPING) - 1):
+        p1, r1 = LUT_MAPPING[i]
+        p2, r2 = LUT_MAPPING[i+1]
+        if r1 <= value <= r2:
+            if r2 == r1: return p1
+            ratio = (value - r1) / (r2 - r1)
+            return round(p1 + ratio * (p2 - p1))
+    return 100
 
 
 # ─── NVibrant Detection ──────────────────────────────────────────────────────
